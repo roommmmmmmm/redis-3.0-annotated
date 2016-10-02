@@ -65,18 +65,18 @@
 #define ZMALLOC_LIB "libc"
 #endif
 
-void *zmalloc(size_t size);
-void *zcalloc(size_t size);
-void *zrealloc(void *ptr, size_t size);
-void zfree(void *ptr);
-char *zstrdup(const char *s);
-size_t zmalloc_used_memory(void);
-void zmalloc_enable_thread_safeness(void);
-void zmalloc_set_oom_handler(void (*oom_handler)(size_t));
-float zmalloc_get_fragmentation_ratio(size_t rss);
-size_t zmalloc_get_rss(void);
-size_t zmalloc_get_private_dirty(void);
-void zlibc_free(void *ptr);
+void *zmalloc(size_t size);  /* 调用zmalloc申请size个大小的内存空间 */
+void *zcalloc(size_t size); /* 调用系统函数calloc申请内存空间 */
+void *zrealloc(void *ptr, size_t size); /* 把内存调整为size大小 */
+void zfree(void *ptr); /* 释放空间的方法，并且更新used_memory的值 */
+char *zstrdup(const char *s); /* 字符串复制 */
+size_t zmalloc_used_memory(void); /* 字面意思，获取当前已经占用的内存大小*/
+void zmalloc_enable_thread_safeness(void); /* 是否启用了线程安全 */
+void zmalloc_set_oom_handler(void (*oom_handler)(size_t)); /* 可以自定义内存溢出的处理方法 */
+float zmalloc_get_fragmentation_ratio(size_t rss); /* 所给大小与以使用内存大小之比 */
+size_t zmalloc_get_rss(void); /* 以操作系统特定的方式获取信息(RSS) */
+size_t zmalloc_get_private_dirty(void); /* 获取私有脏数据的大小 */
+void zlibc_free(void *ptr); /* 释放系统内存的方法 */
 
 #ifndef HAVE_MALLOC_SIZE
 size_t zmalloc_size(void *ptr);
