@@ -71,12 +71,18 @@ void zlibc_free(void *ptr) {
 #define update_zmalloc_stat_add(__n) __sync_add_and_fetch(&used_memory, (__n))
 #define update_zmalloc_stat_sub(__n) __sync_sub_and_fetch(&used_memory, (__n))
 #else
+/*
+ * Redis在对内存空间进行操作的时候，会进行加锁的控制
+ * 增加used_memory的大小
+ * 线程安全模式下的操作，通过锁操作实现对used_memory的控制，避免脏数据是产生 */
 #define update_zmalloc_stat_add(__n) do { \
     pthread_mutex_lock(&used_memory_mutex); \
     used_memory += (__n); \
     pthread_mutex_unlock(&used_memory_mutex); \
 } while(0)
-
+/*
+  减少used_memory的大小(加锁)
+*/
 #define update_zmalloc_stat_sub(__n) do { \
     pthread_mutex_lock(&used_memory_mutex); \
     used_memory -= (__n); \
@@ -84,7 +90,7 @@ void zlibc_free(void *ptr) {
 } while(0)
 
 #endif
-
+/* 更新内存为增加_n大小的内存，分为线程安全和线程不安全的模式 */
 #define update_zmalloc_stat_alloc(__n) do { \
     size_t _n = (__n); \
     if (_n&(sizeof(long)-1)) _n += sizeof(long)-(_n&(sizeof(long)-1)); \
@@ -94,22 +100,27 @@ void zlibc_free(void *ptr) {
         used_memory += _n; \
     } \
 } while(0)
-
+/* 减少申请的_n大小的内存
+ * 注意：这里并不是出现了free就是释放整个内存空间，在函数内部使用的是-操作，并没有调用free函数
+ */
 #define update_zmalloc_stat_free(__n) do { \
     size_t _n = (__n); \
     if (_n&(sizeof(long)-1)) _n += sizeof(long)-(_n&(sizeof(long)-1)); \
     if (zmalloc_thread_safe) { \
         update_zmalloc_stat_sub(_n); \
     } else { \
+      /* 特别注意下面这一点，并没有调用free函数 */
         used_memory -= _n; \
     } \
 } while(0)
 
-static size_t used_memory = 0;
-static int zmalloc_thread_safe = 0;
-pthread_mutex_t used_memory_mutex = PTHREAD_MUTEX_INITIALIZER;
+static size_t used_memory = 0; /* 全局只维护这一个变量，可以用这个来分析内存使用情况 */
+static int zmalloc_thread_safe = 0; /* 表示是否开启线程安全的标志 */
+pthread_mutex_t used_memory_mutex = PTHREAD_MUTEX_INITIALIZER; /* 线程互斥锁，操作系统的知识，具体可以baidu(linux下) */
 
+/* 默认的内存溢出响应函数 */
 static void zmalloc_default_oom(size_t size) {
+    /* zmalloc : 内存中试图分配%zu字节（内存分配不足） */
     fprintf(stderr, "zmalloc: Out of memory trying to allocate %zu bytes\n",
         size);
     fflush(stderr);
@@ -118,45 +129,54 @@ static void zmalloc_default_oom(size_t size) {
 
 static void (*zmalloc_oom_handler)(size_t) = zmalloc_default_oom;
 
+/* 函数作用：调用zmalloc时，分配size大小的内存空间 */
 void *zmalloc(size_t size) {
-    void *ptr = malloc(size+PREFIX_SIZE);
 
+    void *ptr = malloc(size+PREFIX_SIZE); /* 实际调用的还是malloc函数 */
+    /* 如果申请的大小是NULL,就会报oom(out of memory)的错误,调用oom的处理方法 */
     if (!ptr) zmalloc_oom_handler(size);
 #ifdef HAVE_MALLOC_SIZE
     update_zmalloc_stat_alloc(zmalloc_size(ptr));
     return ptr;
 #else
     *((size_t*)ptr) = size;
+    /* 更新used_memory的大小 */
     update_zmalloc_stat_alloc(size+PREFIX_SIZE);
     return (char*)ptr+PREFIX_SIZE;
 #endif
 }
-
+/* 调用系统函数calloc函数申请内存空间
+ * 特别注意：zcalloc申请内存后会初始化，而zmalloc申请内存后，不会初始化
+ */
 void *zcalloc(size_t size) {
+    /* calloc和malloc一样，不过是参数不同，在这里同样是申请size+PREFIX_SIZE大小的内存空间 */
     void *ptr = calloc(1, size+PREFIX_SIZE);
-
+    /* 如果申请的大小是NULL,就会报oom(out of memory)的错误,调用oom的处理方法 */
     if (!ptr) zmalloc_oom_handler(size);
 #ifdef HAVE_MALLOC_SIZE
     update_zmalloc_stat_alloc(zmalloc_size(ptr));
     return ptr;
 #else
     *((size_t*)ptr) = size;
+    /* 更新used_memory的大小 */
     update_zmalloc_stat_alloc(size+PREFIX_SIZE);
     return (char*)ptr+PREFIX_SIZE;
 #endif
 }
-
+/* 重新分配内存，如果当前地址不能满足申请size大小的内存空间，则需要重新申请内存，然后将ptr中的数据拷贝过去
+ * 然后返回新的内存地址;如果当前地址满足申请需要，则扩大当前地址范围
+ */
 void *zrealloc(void *ptr, size_t size) {
 #ifndef HAVE_MALLOC_SIZE
     void *realptr;
 #endif
     size_t oldsize;
     void *newptr;
-
+    /* 如果ptr为NULL，则直接申请内存 */
     if (ptr == NULL) return zmalloc(size);
 #ifdef HAVE_MALLOC_SIZE
     oldsize = zmalloc_size(ptr);
-    newptr = realloc(ptr,size);
+    newptr = realloc(ptr,size); /* 重新分配内存 */
     if (!newptr) zmalloc_oom_handler(size);
 
     update_zmalloc_stat_free(oldsize);
@@ -165,7 +185,7 @@ void *zrealloc(void *ptr, size_t size) {
 #else
     realptr = (char*)ptr-PREFIX_SIZE;
     oldsize = *((size_t*)realptr);
-    newptr = realloc(realptr,size+PREFIX_SIZE);
+    newptr = realloc(realptr,size+PREFIX_SIZE); /* 重新分配内存 */
     if (!newptr) zmalloc_oom_handler(size);
 
     *((size_t*)newptr) = size;
@@ -179,6 +199,7 @@ void *zrealloc(void *ptr, size_t size) {
  * malloc itself, given that in that case we store a header with this
  * information as the first bytes of every allocation. */
 #ifndef HAVE_MALLOC_SIZE
+/* 返回当前分配的内存块的大小 */
 size_t zmalloc_size(void *ptr) {
     void *realptr = (char*)ptr-PREFIX_SIZE;
     size_t size = *((size_t*)realptr);
@@ -188,7 +209,7 @@ size_t zmalloc_size(void *ptr) {
     return size+PREFIX_SIZE;
 }
 #endif
-
+/* 释放指定的内存空间 */
 void zfree(void *ptr) {
 #ifndef HAVE_MALLOC_SIZE
     void *realptr;
@@ -206,7 +227,7 @@ void zfree(void *ptr) {
     free(realptr);
 #endif
 }
-
+/* 深拷贝字符串 */
 char *zstrdup(const char *s) {
     size_t l = strlen(s)+1;
     char *p = zmalloc(l);
@@ -214,7 +235,7 @@ char *zstrdup(const char *s) {
     memcpy(p,s,l);
     return p;
 }
-
+/* 获得使用内存的大小 */
 size_t zmalloc_used_memory(void) {
     size_t um;
 
@@ -233,11 +254,11 @@ size_t zmalloc_used_memory(void) {
 
     return um;
 }
-
+/* 是否设置线程安全模式，调用后设置线程安全 */
 void zmalloc_enable_thread_safeness(void) {
     zmalloc_thread_safe = 1;
 }
-
+/* 这里可以自定义内存溢出时的处理方法 */
 void zmalloc_set_oom_handler(void (*oom_handler)(size_t)) {
     zmalloc_oom_handler = oom_handler;
 }
@@ -326,6 +347,7 @@ float zmalloc_get_fragmentation_ratio(size_t rss) {
 }
 
 #if defined(HAVE_PROC_SMAPS)
+/* 实际内存的大小 */
 size_t zmalloc_get_private_dirty(void) {
     char line[1024];
     size_t pd = 0;
