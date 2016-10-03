@@ -240,8 +240,8 @@ list *listInsertNode(list *list, listNode *old_node, void *value, int after) {
  *
  * This function can't fail. */
 /*
- * 从链表 list 中删除给定节点 node 
- * 
+ * 从链表 list 中删除给定节点 node
+ *
  * 对节点私有值(private value of the node)的释放工作由调用者进行。
  *
  * T = O(1)
@@ -456,9 +456,9 @@ list *listDup(list *orig)
  * On success the first matching node pointer is returned
  * (search starts from head). If no matching node exists
  * NULL is returned. */
-/* 
+/*
  * 查找链表 list 中值和 key 匹配的节点。
- * 
+ *
  * 对比操作由链表的 match 函数负责进行，
  * 如果没有设置 match 函数，
  * 那么直接通过对比值的指针来决定是否匹配。
@@ -476,7 +476,7 @@ listNode *listSearchKey(list *list, void *key)
     // 迭代整个链表
     iter = listGetIterator(list, AL_START_HEAD);
     while((node = listNext(iter)) != NULL) {
-        
+
         // 对比
         if (list->match) {
             if (list->match(node->value, key)) {
@@ -492,7 +492,7 @@ listNode *listSearchKey(list *list, void *key)
             }
         }
     }
-    
+
     listReleaseIterator(iter);
 
     // 未找到
