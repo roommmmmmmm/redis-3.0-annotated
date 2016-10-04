@@ -207,7 +207,7 @@ void sdsclear(sds s) {
 /* Enlarge the free space at the end of the sds string so that the caller
  * is sure that after calling this function can overwrite up to addlen
  * bytes after the end of the string, plus one more byte for nul term.
- * 
+ *
  * Note: this does not change the *length* of the sds string as returned
  * by sdslen(), but only the free buffer space we have. */
 /*
@@ -243,7 +243,7 @@ sds sdsMakeRoomFor(sds s, size_t addlen) {
 
     // 根据新长度，为 s 分配新空间所需的大小
     if (newlen < SDS_MAX_PREALLOC)
-        // 如果新长度小于 SDS_MAX_PREALLOC 
+        // 如果新长度小于 SDS_MAX_PREALLOC
         // 那么为它分配两倍于所需长度的空间
         newlen *= 2;
     else
@@ -425,9 +425,9 @@ sds sdsgrowzero(sds s, size_t len) {
  * After the call, the passed sds string is no longer valid and all the
  * references must be substituted with the new pointer returned by the call. */
 sds sdscatlen(sds s, const void *t, size_t len) {
-    
+
     struct sdshdr *sh;
-    
+
     // 原有字符串长度
     size_t curlen = sdslen(s);
 
@@ -435,7 +435,7 @@ sds sdscatlen(sds s, const void *t, size_t len) {
     // T = O(N)
     s = sdsMakeRoomFor(s,len);
 
-    // 内存不足？直接返回
+    // 字符串为空的话，直接返回NULL
     if (s == NULL) return NULL;
 
     // 复制 t 中的内容到字符串后部
@@ -456,7 +456,7 @@ sds sdscatlen(sds s, const void *t, size_t len) {
 
 /*
  * 将给定字符串 t 追加到 sds 的末尾
- * 
+ *
  * 返回值
  *  sds ：追加成功返回新 sds ，失败返回 NULL
  *
@@ -473,7 +473,7 @@ sds sdscat(sds s, const char *t) {
 
 /*
  * 将另一个 sds 追加到一个 sds 的末尾
- * 
+ *
  * 返回值
  *  sds ：追加成功返回新 sds ，失败返回 NULL
  *
@@ -630,7 +630,7 @@ sds sdsfromlonglong(long long value) {
     return sdsnewlen(buf,len);
 }
 
-/* 
+/*
  * 打印函数，被 sdscatprintf 所调用
  *
  * T = O(N^2)
@@ -643,6 +643,9 @@ sds sdscatvprintf(sds s, const char *fmt, va_list ap) {
 
     /* We try to start using a static buffer for speed.
      * If not possible we revert to heap allocation. */
+    /* 我们试图使用一个快速的静态缓冲区，
+     * 如果不可能，我们将恢复到堆分配
+    */
     if (buflen > sizeof(staticbuf)) {
         buf = zmalloc(buflen);
         if (buf == NULL) return NULL;
@@ -857,7 +860,7 @@ sds sdstrim(sds s, const char *cset) {
 
     // 计算 trim 完毕之后剩余的字符串长度
     len = (sp > ep) ? 0 : ((ep-sp)+1);
-    
+
     // 如果有需要，前移字符串内容
     // T = O(N)
     if (sh->buf != sp) memmove(sh->buf, sp, len);
@@ -1035,7 +1038,7 @@ sds *sdssplitlen(const char *s, int len, const char *sep, int seplen, int *count
         *count = 0;
         return tokens;
     }
-    
+
     // T = O(N^2)
     for (j = 0; j < (len-(seplen-1)); j++) {
         /* make sure there is room for the next element and the final one */
@@ -1341,7 +1344,7 @@ err:
  * 就会将 "hello" 转换为 "0ell1"
  *
  * The function returns the sds string pointer, that is always the same
- * as the input pointer since no resize is needed. 
+ * as the input pointer since no resize is needed.
  * 因为无须对 sds 进行大小调整，
  * 所以返回的 sds 输入的 sds 一样
  *
@@ -1366,6 +1369,9 @@ sds sdsmapchars(sds s, const char *from, const char *to, size_t setlen) {
 
 /* Join an array of C strings using the specified separator (also a C string).
  * Returns the result as an sds string. */
+/* 使用指定的分割符把传入的字符串连接起来。
+ * 返回一个sds的字符串
+ */
 sds sdsjoin(char **argv, int argc, char *sep) {
     sds join = sdsempty();
     int j;
