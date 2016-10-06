@@ -39,7 +39,7 @@
 /* The current RDB version. When the format changes in a way that is no longer
  * backward compatible this number gets incremented.
  *
- * RDB 的版本，当新版本不向就版本兼容时，增一
+ * RDB 的版本，当新版本不向旧版本兼容时，增一
  */
 #define REDIS_RDB_VERSION 6
 
@@ -65,7 +65,7 @@
  *           查看 REDIS_RDB_ENC_* 定义获得更多消息
  *
  * Lenghts up to 63 are stored using a single byte, most DB keys, and may
- * values, will fit inside. 
+ * values, will fit inside.
  *
  * 一个字节（的其中 6 个字节）可以保存的最大长度是 63 （包括在内），
  * 对于大多数键和值来说，都已经足够了。
@@ -129,19 +129,19 @@
 // 数据库的结尾（但不是 RDB 文件的结尾）
 #define REDIS_RDB_OPCODE_EOF        255
 
-int rdbSaveType(rio *rdb, unsigned char type);
-int rdbLoadType(rio *rdb);
+int rdbSaveType(rio *rdb, unsigned char type); /* 保存操作 */
+int rdbLoadType(rio *rdb); /* 加载rdb的数据 */
 int rdbSaveTime(rio *rdb, time_t t);
-time_t rdbLoadTime(rio *rdb);
-int rdbSaveLen(rio *rdb, uint32_t len);
-uint32_t rdbLoadLen(rio *rdb, int *isencoded);
-int rdbSaveObjectType(rio *rdb, robj *o);
-int rdbLoadObjectType(rio *rdb);
-int rdbLoad(char *filename);
-int rdbSaveBackground(char *filename);
-void rdbRemoveTempFile(pid_t childpid);
-int rdbSave(char *filename);
-int rdbSaveObject(rio *rdb, robj *o);
+time_t rdbLoadTime(rio *rdb); /* 载入过期时间 */
+int rdbSaveLen(rio *rdb, uint32_t len); /* 保存时，按照长度不同进行不同的编码 */
+uint32_t rdbLoadLen(rio *rdb, int *isencoded); /* 加载长度，根据不同的编码方式读取不同的buf */
+int rdbSaveObjectType(rio *rdb, robj *o); /* 把对象o的类型写入到rdb中 */
+int rdbLoadObjectType(rio *rdb); /* 加载rdb中的 o 类型 */
+int rdbLoad(char *filename); /* 将给定 rdb 中保存的数据载入到数据库中 */
+int rdbSaveBackground(char *filename); /* 后台进行rbd保存操作 */
+void rdbRemoveTempFile(pid_t childpid); /* 移除 BGSAVE 所产生的临时文件 */
+int rdbSave(char *filename); /* 将数据库保存到磁盘上 */
+int rdbSaveObject(rio *rdb, robj *o); /* 将给定的对象o 保存到rdb中 */
 off_t rdbSavedObjectLen(robj *o);
 off_t rdbSavedObjectPages(robj *o);
 robj *rdbLoadObject(int type, rio *rdb);
